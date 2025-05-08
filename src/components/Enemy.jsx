@@ -9,17 +9,11 @@ const ENEMY_SPRITES = {
   default: '/assets/images/enemyRed.png' // Fallback para um inimigo padrão
 };
 
-// Cores para explosão ainda podem ser usadas ou substituídas por um sprite de explosão
-const ENEMY_EXPLOSION_COLORS = {
-  normal: 'darkred',
-  fast: 'orange',
-  tank: 'indigo',
-  default: 'black'
-};
+// URL do sprite de explosão
+const EXPLOSION_SPRITE_URL = '/assets/images/explosion.png';
 
 function Enemy({ enemyData }) { 
   const spriteUrl = ENEMY_SPRITES[enemyData.type] || ENEMY_SPRITES.default;
-  const explosionColor = ENEMY_EXPLOSION_COLORS[enemyData.type] || ENEMY_EXPLOSION_COLORS.default;
 
   const style = {
     left: `${enemyData.x}px`,
@@ -27,8 +21,8 @@ function Enemy({ enemyData }) {
     width: '40px', // Manter 40px por enquanto, ajustar se necessário
     height: '40px',
     position: 'absolute',
-    backgroundImage: !enemyData.isExploding ? `url(${spriteUrl})` : 'none', // Usar sprite se não explodindo
-    backgroundColor: enemyData.isExploding ? explosionColor : 'transparent', // Cor de explosão ou transparente
+    backgroundImage: enemyData.isExploding ? `url(${EXPLOSION_SPRITE_URL})` : `url(${spriteUrl})`,
+    backgroundColor: 'transparent', // Sempre transparente
     backgroundSize: 'contain',
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'center',
