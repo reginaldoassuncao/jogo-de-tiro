@@ -1,44 +1,44 @@
 import React from 'react';
 
-// Para acesso fácil aos detalhes do tipo, poderíamos importar ENEMY_TYPES de App.jsx
-// ou definir um mapeamento simples aqui se App.jsx não exportar ENEMY_TYPES.
-// Por simplicidade, vamos mapear cores aqui baseado no nome do tipo.
-const ENEMY_TYPE_DETAILS = {
-  normal: {
-    color: 'red',
-    explosionColor: 'darkred',
-  },
-  fast: {
-    color: 'yellow',
-    explosionColor: 'orange',
-  },
-  tank: {
-    color: 'purple',
-    explosionColor: 'indigo',
-  },
-  default: { // Fallback
-    color: 'grey',
-    explosionColor: 'black',
-  }
+// Mapeamento do tipo do inimigo para o nome do arquivo de imagem
+// (Assumindo que os arquivos estão em /public/assets/images/ e foram renomeados para .png)
+const ENEMY_SPRITES = {
+  normal: '/assets/images/enemyRed.png',
+  fast: '/assets/images/enemyYellow.png',
+  tank: '/assets/images/tank.png',
+  default: '/assets/images/enemyRed.png' // Fallback para um inimigo padrão
 };
 
-function Enemy({ enemyData }) { // Renomeado para enemyData
-  const typeDetails = ENEMY_TYPE_DETAILS[enemyData.type] || ENEMY_TYPE_DETAILS.default;
-  
+// Cores para explosão ainda podem ser usadas ou substituídas por um sprite de explosão
+const ENEMY_EXPLOSION_COLORS = {
+  normal: 'darkred',
+  fast: 'orange',
+  tank: 'indigo',
+  default: 'black'
+};
+
+function Enemy({ enemyData }) { 
+  const spriteUrl = ENEMY_SPRITES[enemyData.type] || ENEMY_SPRITES.default;
+  const explosionColor = ENEMY_EXPLOSION_COLORS[enemyData.type] || ENEMY_EXPLOSION_COLORS.default;
+
   const style = {
     left: `${enemyData.x}px`,
     top: `${enemyData.y}px`,
-    width: '40px',
+    width: '40px', // Manter 40px por enquanto, ajustar se necessário
     height: '40px',
-    backgroundColor: enemyData.isExploding ? typeDetails.explosionColor : typeDetails.color,
     position: 'absolute',
-    // Adicionar uma borda sutil para inimigos amarelos para melhor visibilidade
-    border: enemyData.type === 'fast' && !enemyData.isExploding ? '1px solid black' : 'none',
+    backgroundImage: !enemyData.isExploding ? `url(${spriteUrl})` : 'none', // Usar sprite se não explodindo
+    backgroundColor: enemyData.isExploding ? explosionColor : 'transparent', // Cor de explosão ou transparente
+    backgroundSize: 'contain',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+    // Remover a borda que adicionamos para o amarelo, pois o sprite deve resolver
+    // border: enemyData.type === 'fast' && !enemyData.isExploding ? '1px solid black' : 'none',
   };
 
   return (
     <div className="enemy" style={style}>
-      {/* {enemyData.type.charAt(0).toUpperCase()}  Poderia exibir a inicial do tipo */}
+      {/* Visual agora vem do background */} 
     </div>
   );
 }

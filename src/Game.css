@@ -21,8 +21,11 @@ body {
 
 .player {
   width: 50px;
-  height: 30px;
-  background-color: lightblue;
+  height: 50px;
+  background-image: url('/assets/images/playerShip.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
   /* position: absolute; foi movido para o JS */
   /* bottom: 20px; Removido pois Y é controlado via JS */
   /* Outros estilos serão definidos via JavaScript para posição */
@@ -31,7 +34,7 @@ body {
 .enemy {
   width: 40px;
   height: 40px;
-  background-color: red;
+  /* background-color: red; */ /* Removido - Controlado via JS/Sprite */
   position: absolute;
   /* Outros estilos serão definidos via JavaScript para posição */
 }
