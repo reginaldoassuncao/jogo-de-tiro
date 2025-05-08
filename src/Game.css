@@ -47,10 +47,12 @@ body {
 }
 
 .enemy-projectile {
-  width: 8px;
-  height: 8px;
-  background-color: deeppink; /* Cor diferente para o tiro inimigo */
-  border-radius: 50%; /* Faz ser um círculo */
+  width: 10px;
+  height: 20px;
+  background-image: url('/assets/images/missel-tank.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
   position: absolute;
 }
 

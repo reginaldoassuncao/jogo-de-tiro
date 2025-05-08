@@ -23,8 +23,8 @@ const ENEMY_AIM_TOLERANCE = 50; // Tolerância (pixels) para o inimigo atirar no
 
 // Constantes para Projéteis Inimigos
 const ENEMY_PROJECTILE_SPEED = 3; 
-const ENEMY_PROJECTILE_WIDTH = 8;
-const ENEMY_PROJECTILE_HEIGHT = 8;
+const ENEMY_PROJECTILE_WIDTH = 20;
+const ENEMY_PROJECTILE_HEIGHT = 40;
 
 // Constantes para velocidade dinâmica dos inimigos
 const BASE_ENEMY_SPEED = 1.0; // Ajustado para melhor balanceamento com modificadores
