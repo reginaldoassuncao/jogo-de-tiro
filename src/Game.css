@@ -43,6 +43,14 @@ body {
   position: absolute;
 }
 
+.enemy-projectile {
+  width: 8px;
+  height: 8px;
+  background-color: deeppink; /* Cor diferente para o tiro inimigo */
+  border-radius: 50%; /* Faz ser um círculo */
+  position: absolute;
+}
+
 .score {
   position: absolute;
   top: 10px;

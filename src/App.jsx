@@ -4,6 +4,7 @@ import Enemy from './components/Enemy';
 import Score from './components/Score';
 import GameOver from './components/GameOver';
 import Projectile from './components/Projectile';
+import EnemyProjectile from './components/EnemyProjectile'; // Importar projétil inimigo
 import './Game.css'; // Importar o CSS
 
 const GAME_WIDTH = 800;
@@ -19,15 +20,45 @@ const ENEMY_HEIGHT = 40;
 const ENEMY_EXPLOSION_DURATION = 5; // Ticks de jogo para a explosão
 const SHOOT_COOLDOWN = 300; // Millissegundos entre tiros
 
+// Constantes para Projéteis Inimigos
+const ENEMY_PROJECTILE_SPEED = 3; 
+const ENEMY_PROJECTILE_WIDTH = 8;
+const ENEMY_PROJECTILE_HEIGHT = 8;
+
 // Constantes para velocidade dinâmica dos inimigos
-const BASE_ENEMY_SPEED = 1.5; // Velocidade inicial dos inimigos
+const BASE_ENEMY_SPEED = 1.0; // Ajustado para melhor balanceamento com modificadores
 const SCORE_THRESHOLD_FOR_SPEED_INCREASE = 100; // A cada X pontos, aumenta a velocidade
-const ENEMY_SPEED_INCREMENT = 0.5; // Quanto a velocidade aumenta
+const ENEMY_SPEED_INCREMENT = 0.25; // Ajustado
 
 // Efeitos Sonoros (certifique-se que os arquivos estão em public/sounds/)
 const shootSound = new Audio('/sounds/tiro.mp3'); // Alterado para .mp3
 const explosionSound = new Audio('/sounds/explosao.mp3'); // Alterado para .mp3
 const gameOverSound = new Audio('/sounds/gameover.mp3'); // Alterado para .mp3
+
+// Definição dos Tipos de Inimigos
+const ENEMY_TYPES = {
+  normal: {
+    color: 'red',
+    explosionColor: 'darkred', // Cor de explosão mais escura para diferenciar
+    speedModifier: 1.0,
+    canShoot: false,
+  },
+  fast: {
+    color: 'yellow',
+    explosionColor: 'orange',
+    speedModifier: 1.5,
+    canShoot: false,
+  },
+  tank: {
+    color: 'purple',
+    explosionColor: 'indigo',
+    speedModifier: 0.7,
+    canShoot: true,
+    shootCooldownMillis: 2500, // Cooldown para o tiro do tanque
+    // Poderia ter mais vida no futuro, ex: health: 2
+  },
+};
+const ENEMY_TYPE_KEYS = Object.keys(ENEMY_TYPES);
 
 // Função auxiliar para tocar sons
 const playSound = (sound) => {
@@ -39,17 +70,20 @@ function App() {
   const [playerPos, setPlayerPos] = useState({ x: GAME_WIDTH / 2 - PLAYER_WIDTH / 2, y: GAME_HEIGHT - PLAYER_HEIGHT - 20 });
   const [enemies, setEnemies] = useState([]);
   const [projectiles, setProjectiles] = useState([]);
+  const [enemyProjectiles, setEnemyProjectiles] = useState([]);
   const [score, setScore] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
   const [pressedKeys, setPressedKeys] = useState({});
   const [canShoot, setCanShoot] = useState(true);
 
-  // Refs para acessar o estado mais recente nos event handlers sem causar re-hook
+  // Refs
   const playerPosRef = useRef(playerPos);
   const canShootRef = useRef(canShoot);
   const isGameOverRef = useRef(isGameOver);
-  const pressedKeysRef = useRef(pressedKeys); // Ref para pressedKeys
-  const scoreRef = useRef(score); // Ref para o score para calcular velocidade dinamicamente
+  const pressedKeysRef = useRef(pressedKeys);
+  const scoreRef = useRef(score);
+  const projectilesToSpawnBufferRef = useRef([]);
+  const enemiesRef = useRef(enemies); // <<< NOVA REF PARA INIMIGOS
 
   useEffect(() => {
     playerPosRef.current = playerPos;
@@ -72,12 +106,17 @@ function App() {
 
   useEffect(() => {
     scoreRef.current = score;
-  }, [score]); // Manter scoreRef atualizado
+  }, [score]);
+
+  useEffect(() => {
+    enemiesRef.current = enemies;
+  }, [enemies]); // <<< ATUALIZAR enemiesRef
 
   const restartGame = () => {
     setPlayerPos({ x: GAME_WIDTH / 2 - PLAYER_WIDTH / 2, y: GAME_HEIGHT - PLAYER_HEIGHT - 20 });
     setEnemies([]);
     setProjectiles([]);
+    setEnemyProjectiles([]); // Limpar projéteis inimigos
     setScore(0);
     setIsGameOver(false);
     setPressedKeys({});
@@ -129,9 +168,18 @@ function App() {
 
   // Game Loop principal para movimento e criação
   useEffect(() => {
-    if (isGameOver) return; // Usar o estado diretamente aqui é bom para controlar o loop
+    console.log("SETUP gameTick useEffect: isGameOver =", isGameOver); // <<< NOVO LOG AQUI
+
+    if (isGameOver) {
+        console.log("SETUP gameTick useEffect: Jogo terminado, não iniciando loop.");
+        return; // Não iniciar o loop se o jogo já acabou
+    }
+
+    console.log("SETUP gameTick useEffect: Iniciando setInterval..."); // <<< NOVO LOG AQUI
 
     const gameTick = () => {
+      // console.log("--- gameTick EXECUTANDO ---");
+
       // Mover jogador usando pressedKeysRef.current
       setPlayerPos(prevPos => {
         let newX = prevPos.x;
@@ -152,39 +200,92 @@ function App() {
           .filter(p => p.y > -PROJECTILE_HEIGHT) // Remove se saiu completamente do topo
       );
 
-      // Calcular velocidade atual dos inimigos com base no scoreRef
+      // Mover projéteis inimigos existentes
+      setEnemyProjectiles(prev => 
+        prev
+          .map(p => ({ ...p, y: p.y + ENEMY_PROJECTILE_SPEED }))
+          .filter(p => p.y < GAME_HEIGHT + ENEMY_PROJECTILE_HEIGHT)
+      );
+
       const speedIncreases = Math.floor(scoreRef.current / SCORE_THRESHOLD_FOR_SPEED_INCREASE);
-      const currentEnemySpeed = BASE_ENEMY_SPEED + (speedIncreases * ENEMY_SPEED_INCREMENT);
+      const globalEnemySpeed = BASE_ENEMY_SPEED + (speedIncreases * ENEMY_SPEED_INCREMENT);
+      
+      // --- Processamento Síncrono de Inimigos e Projéteis ---
+      let nextEnemiesList = [];
+      let projectilesToSpawn = [];
+      
+      // console.log(`Tick: Processing ${enemiesRef.current.length} enemies from ref.`);
 
-      // Mover, atualizar e criar inimigos
-      setEnemies(prevEnemies => {
-        let updatedEnemies = prevEnemies.map(enemy => {
-          if (enemy.isExploding) {
-            return { ...enemy, explosionTimer: enemy.explosionTimer - 1 };
+      for (const enemy of enemiesRef.current) {
+          let updatedEnemy = {...enemy};
+          // console.log(`Processing enemy ${enemy.id} at y=${enemy.y}`); 
+
+          if (updatedEnemy.isExploding) {
+            updatedEnemy.explosionTimer -= 1;
+            if (updatedEnemy.explosionTimer > 0) {
+              // console.log(`Keeping exploding enemy ${updatedEnemy.id}, timer=${updatedEnemy.explosionTimer}`);
+              nextEnemiesList.push(updatedEnemy); 
+            } else {
+              // console.log(`Removing exploded enemy ${updatedEnemy.id}`);
+            }
+          } else {
+            const enemyTypeDetails = ENEMY_TYPES[updatedEnemy.type];
+            const individualSpeed = globalEnemySpeed * (enemyTypeDetails?.speedModifier || 1.0);
+            updatedEnemy.y += individualSpeed;
+
+            if (updatedEnemy.y >= GAME_HEIGHT) {
+              // console.log(`Filtering out enemy ${updatedEnemy.id} - Off screen: y=${updatedEnemy.y}`);
+              continue; 
+            } else {
+               // console.log(`Keeping non-exploding enemy ${updatedEnemy.id}, new y=${updatedEnemy.y}`);
+            }
+
+            if (enemyTypeDetails?.canShoot) {
+              if (Date.now() - (updatedEnemy.lastShotTime || 0) > enemyTypeDetails.shootCooldownMillis) {
+                // console.log(`!!! INIMIGO ATIRANDO: ${updatedEnemy.id} (tipo ${updatedEnemy.type})`); // Log de tiro mantido comentado
+                projectilesToSpawn.push({ 
+                  id: Date.now() + Math.random(), 
+                  x: updatedEnemy.x + ENEMY_WIDTH / 2 - ENEMY_PROJECTILE_WIDTH / 2,
+                  y: updatedEnemy.y + ENEMY_HEIGHT, 
+                });
+                updatedEnemy.lastShotTime = Date.now();
+              }
+            }
+            nextEnemiesList.push(updatedEnemy); 
           }
-          // Só mover se não estiver explodindo
-          return { ...enemy, y: enemy.y + currentEnemySpeed };
-        }).filter(enemy => {
-            // Manter inimigos que ainda estão explodindo ou que estão na tela
-            if (enemy.isExploding) return enemy.explosionTimer > 0;
-            return enemy.y < GAME_HEIGHT; // Remove inimigos normais que saíram da tela por baixo
-        });
+      }
+      
+      // console.log(`Finished processing existing. nextEnemiesList size: ${nextEnemiesList.length}`);
 
-        if (Math.random() < 0.02 && updatedEnemies.filter(e => !e.isExploding).length < 7) {
-          updatedEnemies.push({
-            id: Date.now(),
-            x: Math.random() * (GAME_WIDTH - ENEMY_WIDTH),
-            y: 0 - ENEMY_HEIGHT,
-            isExploding: false,
-            explosionTimer: 0,
-          });
-        }
-        return updatedEnemies;
-      });
+      // Criar novos inimigos com probabilidade restaurada (ex: 0.05)
+      if (Math.random() < 0.05 && nextEnemiesList.filter(e => !e.isExploding).length < 8) { 
+        const randomTypeKey = ENEMY_TYPE_KEYS[Math.floor(Math.random() * ENEMY_TYPE_KEYS.length)];
+        const newEnemy = {
+          id: Date.now() + Math.random(),
+          x: Math.random() * (GAME_WIDTH - ENEMY_WIDTH),
+          y: 0 - ENEMY_HEIGHT,
+          isExploding: false, explosionTimer: 0, type: randomTypeKey, lastShotTime: 0, 
+        };
+        // console.log("Creating new enemy:", JSON.parse(JSON.stringify(newEnemy)));
+        nextEnemiesList.push(newEnemy);
+      }
+
+      // console.log(`Final nextEnemiesList size before setEnemies: ${nextEnemiesList.length}`);
+      setEnemies(nextEnemiesList); 
+
+      if (projectilesToSpawn.length > 0) {
+        // console.log("Adicionando projéteis inimigos ao estado:", projectilesToSpawn.length, JSON.parse(JSON.stringify(projectilesToSpawn))); // Log mantido comentado
+        setEnemyProjectiles(prev => [...prev, ...projectilesToSpawn]);
+      }
     };
 
     const intervalId = setInterval(gameTick, 50);
-    return () => clearInterval(intervalId);
+    console.log(`SETUP gameTick useEffect: Intervalo iniciado com ID: ${intervalId}`); // <<< NOVO LOG AQUI
+
+    return () => {
+        console.log(`CLEANUP gameTick useEffect: Limpando intervalo ID: ${intervalId}`); // <<< NOVO LOG AQUI
+        clearInterval(intervalId);
+    };
   }, [isGameOver]);
 
   // Detecção de colisão: Projétil -> Inimigo
@@ -260,6 +361,32 @@ function App() {
     });
   }, [playerPos, enemies, isGameOver]);
 
+  // Detecção de colisão: Projétil Inimigo -> Jogador (NOVO)
+  useEffect(() => {
+    if (isGameOver) return;
+    for (const enemyProjectile of enemyProjectiles) {
+      const projRect = {
+        x: enemyProjectile.x, y: enemyProjectile.y,
+        width: PROJECTILE_WIDTH, height: PROJECTILE_HEIGHT
+      };
+      const playerRect = {
+        x: playerPos.x, y: playerPos.y,
+        width: PLAYER_WIDTH, height: PLAYER_HEIGHT
+      };
+
+      if (
+        projRect.x < playerRect.x + playerRect.width &&
+        projRect.x + projRect.width > playerRect.x &&
+        projRect.y < playerRect.y + playerRect.height &&
+        projRect.y + projRect.height > playerRect.y
+      ) {
+        setIsGameOver(true);
+        // Não precisa remover o projétil inimigo aqui, o jogo vai reiniciar
+        break; // Um projétil é suficiente para o game over
+      }
+    }
+  }, [enemyProjectiles, playerPos, isGameOver]);
+
   if (isGameOver) {
     return (
       <div className="game-container" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
@@ -275,8 +402,12 @@ function App() {
       {projectiles.map(p => (
         <Projectile key={p.id} projectilePos={p} />
       ))}
+      {enemyProjectiles.map(p => { // Renderizar projéteis inimigos
+        // console.log("Renderizando EnemyProjectile:", p); // LOG DE RENDERIZAÇÃO
+        return <EnemyProjectile key={p.id} projectilePos={p} />;
+      })}
       {enemies.map(enemy => (
-        <Enemy key={enemy.id} enemyPos={enemy} />
+        <Enemy key={enemy.id} enemyData={enemy} />
       ))}
     </div>
   );
