@@ -19,6 +19,7 @@ const ENEMY_WIDTH = 40;
 const ENEMY_HEIGHT = 40;
 const ENEMY_EXPLOSION_DURATION = 5; // Ticks de jogo para a explosão
 const SHOOT_COOLDOWN = 300; // Millissegundos entre tiros
+const ENEMY_AIM_TOLERANCE = 50; // Tolerância (pixels) para o inimigo atirar no jogador alinhado
 
 // Constantes para Projéteis Inimigos
 const ENEMY_PROJECTILE_SPEED = 3; 
@@ -39,23 +40,25 @@ const gameOverSound = new Audio('/sounds/gameover.mp3'); // Alterado para .mp3
 const ENEMY_TYPES = {
   normal: {
     color: 'red',
-    explosionColor: 'darkred', // Cor de explosão mais escura para diferenciar
+    explosionColor: 'darkred',
     speedModifier: 1.0,
     canShoot: false,
+    maxHealth: 1, // Vida para normais
   },
   fast: {
     color: 'yellow',
     explosionColor: 'orange',
     speedModifier: 1.5,
     canShoot: false,
+    maxHealth: 1, // Vida para rápidos
   },
   tank: {
     color: 'purple',
     explosionColor: 'indigo',
     speedModifier: 0.7,
     canShoot: true,
-    shootCooldownMillis: 2500, // Cooldown para o tiro do tanque
-    // Poderia ter mais vida no futuro, ex: health: 2
+    shootCooldownMillis: 2500,
+    maxHealth: 3, // <<<< TANQUE AGORA TEM 3 DE VIDA
   },
 };
 const ENEMY_TYPE_KEYS = Object.keys(ENEMY_TYPES);
@@ -241,8 +244,15 @@ function App() {
             }
 
             if (enemyTypeDetails?.canShoot) {
-              if (Date.now() - (updatedEnemy.lastShotTime || 0) > enemyTypeDetails.shootCooldownMillis) {
-                // console.log(`!!! INIMIGO ATIRANDO: ${updatedEnemy.id} (tipo ${updatedEnemy.type})`); // Log de tiro mantido comentado
+              // Checar Cooldown
+              const isCooldownOver = Date.now() - (updatedEnemy.lastShotTime || 0) > enemyTypeDetails.shootCooldownMillis;
+              // Checar Alinhamento Horizontal
+              const playerXCenter = playerPosRef.current.x + PLAYER_WIDTH / 2;
+              const enemyXCenter = updatedEnemy.x + ENEMY_WIDTH / 2;
+              const isAligned = Math.abs(playerXCenter - enemyXCenter) < ENEMY_AIM_TOLERANCE;
+
+              if (isCooldownOver && isAligned) { // <<<< CONDIÇÃO DE MIRA ADICIONADA
+                console.log(`!!! INIMIGO ATIRANDO (Alinhado): ${updatedEnemy.id} (tipo ${updatedEnemy.type})`);
                 projectilesToSpawn.push({ 
                   id: Date.now() + Math.random(), 
                   x: updatedEnemy.x + ENEMY_WIDTH / 2 - ENEMY_PROJECTILE_WIDTH / 2,
@@ -264,9 +274,13 @@ function App() {
           id: Date.now() + Math.random(),
           x: Math.random() * (GAME_WIDTH - ENEMY_WIDTH),
           y: 0 - ENEMY_HEIGHT,
-          isExploding: false, explosionTimer: 0, type: randomTypeKey, lastShotTime: 0, 
+          isExploding: false,
+          explosionTimer: 0,
+          type: randomTypeKey,
+          lastShotTime: 0, 
+          currentHealth: ENEMY_TYPES[randomTypeKey].maxHealth || 1, // <<<< INICIALIZA VIDA
         };
-        // console.log("Creating new enemy:", JSON.parse(JSON.stringify(newEnemy)));
+        // console.log("Creating new enemy:", newEnemy);
         nextEnemiesList.push(newEnemy);
       }
 
@@ -288,22 +302,25 @@ function App() {
     };
   }, [isGameOver]);
 
-  // Detecção de colisão: Projétil -> Inimigo
+  // Detecção de colisão: Projétil do Jogador -> Inimigo
   useEffect(() => {
     if (isGameOver) return;
 
     const projectilesToRemove = new Set();
     let scoreToAdd = 0;
-    let explosionOccurred = false;
-    // Cria uma cópia para mutação segura se necessário, ou para passar para setEnemies
     let nextEnemies = [...enemies]; 
+    let explosionOccurred = false;
 
     for (const projectile of projectiles) {
       if (projectilesToRemove.has(projectile.id)) continue;
 
       for (let i = 0; i < nextEnemies.length; i++) {
-        const enemy = nextEnemies[i];
+        let enemy = nextEnemies[i]; // Usar let para permitir reatribuição
+
         if (enemy.isExploding) continue; // Ignorar inimigos já explodindo
+
+        // Verificar se o projétil já foi marcado para remoção neste loop interno
+        if (projectilesToRemove.has(projectile.id)) break; 
 
         const projectileRect = { x: projectile.x, y: projectile.y, width: PROJECTILE_WIDTH, height: PROJECTILE_HEIGHT };
         const enemyRect = { x: enemy.x, y: enemy.y, width: ENEMY_WIDTH, height: ENEMY_HEIGHT };
@@ -314,27 +331,36 @@ function App() {
           projectileRect.y < enemyRect.y + enemyRect.height &&
           projectileRect.y + projectileRect.height > enemyRect.y
         ) {
+          // Marcar projétil para remoção sempre que atinge algo
           projectilesToRemove.add(projectile.id);
-          scoreToAdd += 10;
-          explosionOccurred = true;
-          // Marcar inimigo como explodindo em vez de removê-lo diretamente
-          nextEnemies[i] = { ...enemy, isExploding: true, explosionTimer: ENEMY_EXPLOSION_DURATION };
+
+          // Decrementar vida do inimigo
+          const newHealth = (enemy.currentHealth || 1) - 1;
+
+          if (newHealth <= 0) {
+            // Inimigo destruído
+            scoreToAdd += 10; // Poderia dar mais pontos por tanques?
+            explosionOccurred = true;
+            // Atualizar o objeto inimigo na lista nextEnemies
+            nextEnemies[i] = { ...enemy, currentHealth: 0, isExploding: true, explosionTimer: ENEMY_EXPLOSION_DURATION };
+          } else {
+            // Apenas atualizar a vida
+            // Poderia tocar um som de "hit" aqui?
+            nextEnemies[i] = { ...enemy, currentHealth: newHealth };
+          }
+
+          // Projétil só atinge um inimigo por vez
           break; 
         }
       }
     }
 
-    if (explosionOccurred) {
-      playSound(explosionSound); // Tocar som de explosão
-    }
+    if (explosionOccurred) playSound(explosionSound);
     if (projectilesToRemove.size > 0) {
       setProjectiles(prev => prev.filter(p => !projectilesToRemove.has(p.id)));
     }
-    // Atualizar a lista de inimigos se houve alguma explosão
-    // Comparar por referência não é suficiente se apenas propriedades mudaram.
-    // Uma maneira simples é verificar se algum inimigo agora está explodindo que não estava antes,
-    // ou simplesmente chamar setEnemies se scoreToAdd > 0 (indicando uma colisão)
-    if (scoreToAdd > 0 || explosionOccurred) { 
+    // Sempre atualizar inimigos se houve colisão (vida pode ter mudado)
+    if (projectilesToRemove.size > 0) { 
         setEnemies(nextEnemies);
     }
     if (scoreToAdd > 0) {
