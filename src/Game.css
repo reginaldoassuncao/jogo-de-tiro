@@ -40,15 +40,18 @@ body {
 }
 
 .projectile {
-  width: 5px;
-  height: 15px;
-  background-color: yellow;
+  width: 10px;
+  height: 30px;
+  background-image: url('/assets/images/missel-player.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
   position: absolute;
 }
 
 .enemy-projectile {
-  width: 10px;
-  height: 20px;
+  width: 20px;
+  height: 40px;
   background-image: url('/assets/images/missel-tank.png');
   background-size: contain;
   background-repeat: no-repeat;

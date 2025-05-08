@@ -18,8 +18,8 @@ function Enemy({ enemyData }) {
   const style = {
     left: `${enemyData.x}px`,
     top: `${enemyData.y}px`,
-    width: '40px', // Manter 40px por enquanto, ajustar se necessário
-    height: '40px',
+    width: '60px',
+    height: '60px',
     position: 'absolute',
     backgroundImage: enemyData.isExploding ? `url(${EXPLOSION_SPRITE_URL})` : `url(${spriteUrl})`,
     backgroundColor: 'transparent', // Sempre transparente
