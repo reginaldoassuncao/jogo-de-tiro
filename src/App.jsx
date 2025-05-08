@@ -14,11 +14,15 @@ const PLAYER_HEIGHT = 30;
 const PROJECTILE_SPEED = 15;
 const PROJECTILE_WIDTH = 5;
 const PROJECTILE_HEIGHT = 15;
-const ENEMY_SPEED = 2; // Velocidade base do inimigo
 const ENEMY_WIDTH = 40;
 const ENEMY_HEIGHT = 40;
 const ENEMY_EXPLOSION_DURATION = 5; // Ticks de jogo para a explosão
 const SHOOT_COOLDOWN = 300; // Millissegundos entre tiros
+
+// Constantes para velocidade dinâmica dos inimigos
+const BASE_ENEMY_SPEED = 1.5; // Velocidade inicial dos inimigos
+const SCORE_THRESHOLD_FOR_SPEED_INCREASE = 100; // A cada X pontos, aumenta a velocidade
+const ENEMY_SPEED_INCREMENT = 0.5; // Quanto a velocidade aumenta
 
 // Efeitos Sonoros (certifique-se que os arquivos estão em public/sounds/)
 const shootSound = new Audio('/sounds/tiro.mp3'); // Alterado para .mp3
@@ -45,6 +49,7 @@ function App() {
   const canShootRef = useRef(canShoot);
   const isGameOverRef = useRef(isGameOver);
   const pressedKeysRef = useRef(pressedKeys); // Ref para pressedKeys
+  const scoreRef = useRef(score); // Ref para o score para calcular velocidade dinamicamente
 
   useEffect(() => {
     playerPosRef.current = playerPos;
@@ -64,6 +69,10 @@ function App() {
   useEffect(() => {
     pressedKeysRef.current = pressedKeys; // Manter a ref atualizada
   }, [pressedKeys]);
+
+  useEffect(() => {
+    scoreRef.current = score;
+  }, [score]); // Manter scoreRef atualizado
 
   const restartGame = () => {
     setPlayerPos({ x: GAME_WIDTH / 2 - PLAYER_WIDTH / 2, y: GAME_HEIGHT - PLAYER_HEIGHT - 20 });
@@ -143,6 +152,10 @@ function App() {
           .filter(p => p.y > -PROJECTILE_HEIGHT) // Remove se saiu completamente do topo
       );
 
+      // Calcular velocidade atual dos inimigos com base no scoreRef
+      const speedIncreases = Math.floor(scoreRef.current / SCORE_THRESHOLD_FOR_SPEED_INCREASE);
+      const currentEnemySpeed = BASE_ENEMY_SPEED + (speedIncreases * ENEMY_SPEED_INCREMENT);
+
       // Mover, atualizar e criar inimigos
       setEnemies(prevEnemies => {
         let updatedEnemies = prevEnemies.map(enemy => {
@@ -150,7 +163,7 @@ function App() {
             return { ...enemy, explosionTimer: enemy.explosionTimer - 1 };
           }
           // Só mover se não estiver explodindo
-          return { ...enemy, y: enemy.y + ENEMY_SPEED };
+          return { ...enemy, y: enemy.y + currentEnemySpeed };
         }).filter(enemy => {
             // Manter inimigos que ainda estão explodindo ou que estão na tela
             if (enemy.isExploding) return enemy.explosionTimer > 0;
@@ -226,8 +239,7 @@ function App() {
     if (scoreToAdd > 0) {
       setScore(s => s + scoreToAdd);
     }
-  }, [projectiles, enemies, isGameOver]); // Removido setProjectiles, setEnemies, setScore das dependências, pois estamos usando-os diretamente.
-                                        // Manter 'enemies' como dependência é crucial aqui.
+  }, [projectiles, enemies, isGameOver]);
 
   // Detecção de colisão: Jogador -> Inimigo
   useEffect(() => {
