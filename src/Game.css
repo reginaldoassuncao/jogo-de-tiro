@@ -10,13 +10,41 @@ body {
   overflow: hidden; /* Evitar barras de rolagem */
 }
 
+/* Animação para rolar o fundo */
+@keyframes scrollBackground {
+  from {
+    background-position-y: 0px; /* Começa no topo */
+  }
+  to {
+    /* Como a imagem parece repetível, podemos mover por um múltiplo 
+       de sua altura para garantir a continuidade, ou apenas um valor 
+       grande para indicar movimento contínuo. 
+       Usar 100% pode não funcionar bem com repeat-y.
+       Vamos usar um valor fixo grande. */
+    background-position-y: 1024px; /* Ajustar este valor se a repetição não ficar boa */
+  }
+}
+
 .game-container {
-  width: 100vw;
-  height: 100vh;
+  width: 800px; /* Definir explicitamente com base nas constantes do App.jsx */
+  height: 600px;/* Definir explicitamente com base nas constantes do App.jsx */
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative; /* Para posicionar elementos do jogo */
+  position: relative; 
+  overflow: hidden; /* Garantir que nada saia do container */
+
+  /* Configuração do fundo */
+  background-image: url('/assets/images/floresta.png');
+  background-repeat: repeat-y; /* Repetir verticalmente */
+  background-size: 100% auto; /* Cobrir largura, altura automática */
+  background-position: center top; /* Começar alinhado no topo */
+  
+  /* Aplicar a animação */
+  animation: scrollBackground 20s linear infinite; /* 20s = velocidade, ajustar! */
+
+  /* Cor de fallback */
+  background-color: #282c34; 
 }
 
 .player {
